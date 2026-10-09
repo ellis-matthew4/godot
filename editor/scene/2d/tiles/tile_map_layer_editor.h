@@ -268,6 +268,8 @@ public:
 
 	virtual void edit(ObjectID p_tile_map_layer_id) override;
 
+	TypedArray<Vector2i> get_selected_cells() const;
+
 	TileMapLayerEditorTilesPlugin();
 };
 
@@ -455,6 +457,7 @@ public:
 
 	void edit(Object *p_tile_map_layer);
 	void set_show_layer_selector(bool p_show_layer_selector);
+	TypedArray<Vector2i> get_selected_cells() const;
 
 	TileMapLayerEditor();
 	~TileMapLayerEditor();

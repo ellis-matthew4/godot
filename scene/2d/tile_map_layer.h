@@ -526,6 +526,8 @@ public:
 	virtual bool _edit_is_selected_on_click(const Point2 &p_point, double p_tolerance) const override;
 #endif
 
+	TypedArray<Vector2i> get_selected_cells() const;
+
 	// TileMap node.
 	void set_as_tile_map_internal_node(int p_index);
 	int get_index_in_tile_map() const {

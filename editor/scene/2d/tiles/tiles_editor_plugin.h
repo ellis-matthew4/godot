@@ -148,6 +148,7 @@ public:
 	virtual void forward_canvas_draw_over_viewport(Control *p_overlay) override;
 
 	bool is_editor_visible() const;
+	TypedArray<Vector2i> get_selected_cells() const;
 
 	TileMapEditorPlugin();
 	~TileMapEditorPlugin();
@@ -171,3 +172,6 @@ public:
 	TileSetEditorPlugin();
 	~TileSetEditorPlugin();
 };
+
+// Global reference to the TileMapEditorPlugin singleton for editor integration
+extern TileMapEditorPlugin *tile_map_plugin_singleton;

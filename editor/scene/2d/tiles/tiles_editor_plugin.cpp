@@ -509,6 +509,13 @@ bool TileMapEditorPlugin::is_editor_visible() const {
 	return editor->is_visible_in_tree();
 }
 
+TypedArray<Vector2i> TileMapEditorPlugin::get_selected_cells() const {
+	if (editor) {
+		return editor->get_selected_cells();
+	}
+	return TypedArray<Vector2i>();
+}
+
 TileMapEditorPlugin::TileMapEditorPlugin() {
 	if (!TilesEditorUtils::get_singleton()) {
 		memnew(TilesEditorUtils);

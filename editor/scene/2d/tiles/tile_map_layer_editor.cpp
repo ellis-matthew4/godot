@@ -1432,6 +1432,26 @@ void TileMapLayerEditorTilesPlugin::_stop_dragging() {
 			if (!new_selection_pattern->is_empty()) {
 				selection_pattern = new_selection_pattern;
 				_update_tileset_selection_from_selection_pattern();
+
+				int source_index = sources_list->get_current();
+				if (source_index >= 0 && source_index < sources_list->get_item_count()) {
+					int source_id = sources_list->get_item_metadata(source_index);
+					TileSetAtlasSource *atlas_source = Object::cast_to<TileSetAtlasSource>(*tile_set->get_source(source_id));
+					if (atlas_source) {
+						Rect2 picked_rect;
+						bool picked_atlas_tile = false;
+						for (const TileMapCell &cell : tile_set_selection) {
+							if (cell.source_id == source_id && atlas_source->has_tile(cell.get_atlas_coords())) {
+								Rect2 tile_rect = atlas_source->get_tile_texture_region(cell.get_atlas_coords());
+								picked_rect = picked_atlas_tile ? picked_rect.merge(tile_rect) : tile_rect;
+								picked_atlas_tile = true;
+							}
+						}
+						if (picked_atlas_tile) {
+							callable_mp(tile_atlas_view, &TileAtlasView::center_on_atlas_position).call_deferred(picked_rect.get_center());
+						}
+					}
+				}
 			}
 			picker_button->set_pressed(false);
 		} break;
@@ -2104,6 +2124,7 @@ void TileMapLayerEditorTilesPlugin::_set_tile_map_selection(const TypedArray<Vec
 	_update_selection_pattern_from_tilemap_selection();
 	_update_tileset_selection_from_selection_pattern();
 	CanvasItemEditor::get_singleton()->update_viewport();
+	emit_signal(SNAME("selection_changed"));
 }
 
 TypedArray<Vector2i> TileMapLayerEditorTilesPlugin::_get_tile_map_selection() const {
@@ -2126,6 +2147,8 @@ void TileMapLayerEditorTilesPlugin::_set_source_sort(int p_sort) {
 void TileMapLayerEditorTilesPlugin::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_set_tile_map_selection", "selection"), &TileMapLayerEditorTilesPlugin::_set_tile_map_selection);
 	ClassDB::bind_method(D_METHOD("_get_tile_map_selection"), &TileMapLayerEditorTilesPlugin::_get_tile_map_selection);
+	ClassDB::bind_method(D_METHOD("get_selected_cells"), &TileMapLayerEditorTilesPlugin::get_selected_cells);
+    ADD_SIGNAL(MethodInfo("selection_changed"));
 }
 
 void TileMapLayerEditorTilesPlugin::edit(ObjectID p_tile_map_layer_id) {
@@ -4468,6 +4491,17 @@ void TileMapLayerEditor::set_show_layer_selector(bool p_show_layer_selector) {
 	_update_layers_selector();
 }
 
+TypedArray<Vector2i> TileMapLayerEditor::get_selected_cells() const {
+	// Get the selected cells from the TileMapLayerEditorTilesPlugin
+	for (const TileMapLayerSubEditorPlugin *plugin : tile_map_editor_plugins) {
+		const TileMapLayerEditorTilesPlugin *tiles_plugin = dynamic_cast<const TileMapLayerEditorTilesPlugin *>(plugin);
+		if (tiles_plugin) {
+			return tiles_plugin->get_selected_cells();
+		}
+	}
+	return TypedArray<Vector2i>();
+}
+
 void TileMapLayerEditor::_update_layer_selector_layout(bool p_is_vertical) {
 	if (p_is_vertical && show_layers_selector) {
 		layer_selection_hbox->reparent(tile_map_wide_toolbar);
@@ -4672,4 +4706,12 @@ TileMapLayerEditor::~TileMapLayerEditor() {
 	for (int i = 0; i < tile_map_editor_plugins.size(); i++) {
 		memdelete(tile_map_editor_plugins[i]);
 	}
+}
+
+TypedArray<Vector2i> TileMapLayerEditorTilesPlugin::get_selected_cells() const {
+    TypedArray<Vector2i> arr;
+    for (const Vector2i &E : tile_map_selection) {
+        arr.push_back(E);
+    }
+    return arr;
 }

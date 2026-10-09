@@ -125,6 +125,7 @@ public:
 
 	float get_zoom() const;
 	void set_transform(float p_zoom, Vector2i p_panning);
+	void center_on_atlas_position(const Vector2 &p_position);
 
 	void set_padding(Side p_side, int p_padding);
 

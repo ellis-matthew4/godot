@@ -330,36 +330,92 @@ void TileAtlasView::_clear_material_canvas_items() {
 }
 
 void TileAtlasView::_draw_base_tiles_texture_grid() {
-	if (tile_set_atlas_source.is_null()) {
-		return;
-	}
-	Ref<Texture2D> texture = tile_set_atlas_source->get_texture();
-	if (texture.is_valid()) {
-		Vector2i margins = tile_set_atlas_source->get_margins();
-		Vector2i separation = tile_set_atlas_source->get_separation();
-		Vector2i texture_region_size = tile_set_atlas_source->get_texture_region_size();
+    if (tile_set_atlas_source.is_null()) {
+        return;
+    }
+    Ref<Texture2D> texture = tile_set_atlas_source->get_texture();
+    if (texture.is_null()) {
+        return;
+    }
 
-		Size2i grid_size = tile_set_atlas_source->get_atlas_grid_size();
+    Vector2i margins = tile_set_atlas_source->get_margins();
+    Vector2i separation = tile_set_atlas_source->get_separation();
+    Vector2i texture_region_size = tile_set_atlas_source->get_texture_region_size();
+    Size2i grid_size = tile_set_atlas_source->get_atlas_grid_size();
 
-		// Draw each tile texture region.
-		for (int x = 0; x < grid_size.x; x++) {
-			for (int y = 0; y < grid_size.y; y++) {
-				Vector2i origin = margins + (Vector2i(x, y) * (texture_region_size + separation));
-				Vector2i base_tile_coords = tile_set_atlas_source->get_tile_at_coords(Vector2i(x, y));
-				if (base_tile_coords != TileSetSource::INVALID_ATLAS_COORDS) {
-					if (base_tile_coords == Vector2i(x, y)) {
-						// Draw existing tile.
-						Vector2i size_in_atlas = tile_set_atlas_source->get_tile_size_in_atlas(base_tile_coords);
-						Vector2 region_size = texture_region_size * size_in_atlas + separation * (size_in_atlas - Vector2i(1, 1));
-						base_tiles_texture_grid->draw_rect(Rect2i(origin, region_size), Color(1.0, 1.0, 1.0, 0.8), false);
-					}
-				} else {
-					// Draw the grid.
-					base_tiles_texture_grid->draw_rect(Rect2i(origin, texture_region_size), Color(0.7, 0.7, 0.7, 0.1), false);
-				}
-			}
-		}
-	}
+    if (grid_size.x <= 0 || grid_size.y <= 0) {
+        return;
+    }
+
+    Vector2i cell_stride = texture_region_size + separation;
+    if (cell_stride.x <= 0 || cell_stride.y <= 0) {
+        return;
+    }
+
+    // --- 1. Calculate Visible Bounds (Frustum Culling) ---
+    // Get visible viewport rect in local canvas coordinates
+    Transform2D xform = base_tiles_texture_grid->get_global_transform();
+    Rect2 visible_rect = base_tiles_texture_grid->get_viewport_rect();
+    Rect2 local_visible_rect = xform.affine_inverse().xform(visible_rect);
+
+    // Compute min/max tile indices intersecting the visible rect
+    int min_x = MAX(0, (int)Math::floor((local_visible_rect.position.x - margins.x) / cell_stride.x));
+    int max_x = MIN(grid_size.x, (int)Math::ceil((local_visible_rect.get_end().x - margins.x) / cell_stride.x));
+    
+    int min_y = MAX(0, (int)Math::floor((local_visible_rect.position.y - margins.y) / cell_stride.y));
+    int max_y = MIN(grid_size.y, (int)Math::ceil((local_visible_rect.get_end().y - margins.y) / cell_stride.y));
+
+    // Return early if current viewport doesn't overlap the atlas area at all
+    if (min_x >= max_x || min_y >= max_y) {
+        return;
+    }
+
+    // --- 2. Draw Culled Grid Lines ---
+    Vector<Vector2> empty_grid_lines;
+    Color grid_color = Color(0.7, 0.7, 0.7, 0.1);
+
+    real_t start_y = margins.y + min_y * cell_stride.y;
+    real_t end_y = margins.y + max_y * cell_stride.y - (max_y == grid_size.y ? separation.y : 0);
+
+    real_t start_x = margins.x + min_x * cell_stride.x;
+    real_t end_x = margins.x + max_x * cell_stride.x - (max_x == grid_size.x ? separation.x : 0);
+
+    // Vertical line segments bounded by view
+    for (int x = min_x; x <= max_x; x++) {
+        real_t pos_x = margins.x + x * cell_stride.x;
+        empty_grid_lines.push_back(Vector2(pos_x, start_y));
+        empty_grid_lines.push_back(Vector2(pos_x, end_y));
+    }
+
+    // Horizontal line segments bounded by view
+    for (int y = min_y; y <= max_y; y++) {
+        real_t pos_y = margins.y + y * cell_stride.y;
+        empty_grid_lines.push_back(Vector2(start_x, pos_y));
+        empty_grid_lines.push_back(Vector2(end_x, pos_y));
+    }
+
+    base_tiles_texture_grid->draw_multiline(empty_grid_lines, grid_color);
+
+    // --- 3. Draw Culled Tile Outlines ---
+    Color tile_outline_color = Color(1.0, 1.0, 1.0, 0.8);
+    Rect2 visible_region_rect(
+        Vector2(start_x, start_y),
+        Vector2(end_x - start_x, end_y - start_y)
+    );
+    
+    for (int i = 0; i < tile_set_atlas_source->get_tiles_count(); i++) {
+        Vector2i coords = tile_set_atlas_source->get_tile_id(i);
+        Vector2i size_in_atlas = tile_set_atlas_source->get_tile_size_in_atlas(coords);
+        
+        Vector2i origin = margins + coords * cell_stride;
+        Vector2 region_size = texture_region_size * size_in_atlas + separation * (size_in_atlas - Vector2i(1, 1));
+        Rect2 tile_rect(origin, region_size);
+
+        // Skip tile outline if outside the visible rectangle
+        if (visible_region_rect.intersects(tile_rect)) {
+            base_tiles_texture_grid->draw_rect(tile_rect, tile_outline_color, false);
+        }
+    }
 }
 
 void TileAtlasView::_draw_base_tiles_shape_grid() {
@@ -502,6 +558,19 @@ void TileAtlasView::set_transform(float p_zoom, Vector2i p_panning) {
 	zoom_widget->set_zoom(p_zoom);
 	panning = p_panning;
 	_update_zoom_and_panning();
+}
+
+void TileAtlasView::center_on_atlas_position(const Vector2 &p_position) {
+	if (tile_set_atlas_source.is_null()) {
+		return;
+	}
+
+	Transform2D center_container_inverse = center_container->get_global_transform().affine_inverse();
+	Vector2 atlas_position = center_container_inverse.xform(base_tiles_drawing_root->get_global_transform().xform(p_position));
+	Vector2 target_position = center_container_inverse.xform(get_global_transform().xform(get_size() / 2.0));
+	panning += target_position - atlas_position;
+	_update_zoom_and_panning();
+	emit_signal(SNAME("transform_changed"), zoom_widget->get_zoom(), panning);
 }
 
 void TileAtlasView::set_padding(Side p_side, int p_padding) {

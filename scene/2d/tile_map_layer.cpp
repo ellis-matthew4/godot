@@ -2182,6 +2182,7 @@ void TileMapLayer::_notification(int p_what) {
 }
 
 void TileMapLayer::_bind_methods() {
+    ClassDB::bind_method(D_METHOD("get_selected_cells"), &TileMapLayer::get_selected_cells);
 	// --- Cells manipulation ---
 	// Generic cells manipulations and access.
 	ClassDB::bind_method(D_METHOD("set_cell", "coords", "source_id", "atlas_coords", "alternative_tile"), &TileMapLayer::set_cell, DEFVAL(TileSet::INVALID_SOURCE), DEFVAL(TileSetSource::INVALID_ATLAS_COORDS), DEFVAL(0));
@@ -3923,4 +3924,19 @@ TerrainConstraint::TerrainConstraint(Ref<TileSet> p_tile_set, const Vector2i &p_
 		}
 	}
 	terrain = p_terrain;
+}
+
+#ifdef TOOLS_ENABLED
+#include "editor/scene/2d/tiles/tile_map_layer_editor.h"
+#include "editor/scene/2d/tiles/tiles_editor_plugin.h"
+#include "editor/editor_node.h"
+#endif
+
+TypedArray<Vector2i> TileMapLayer::get_selected_cells() const {
+#ifdef TOOLS_ENABLED
+	if (Engine::get_singleton()->is_editor_hint() && tile_map_plugin_singleton) {
+		return tile_map_plugin_singleton->get_selected_cells();
+	}
+#endif
+	return TypedArray<Vector2i>();
 }
